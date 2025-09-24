@@ -1,0 +1,532 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no, viewport-fit=cover">
+    <title>Simulador de Planes de Pensiones</title>
+    
+    <!-- PWA -->
+    <link rel="manifest" href="manifest.json">
+    <meta name="theme-color" content="#667eea">
+    
+    <!-- iOS -->
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="default">
+    <meta name="apple-mobile-web-app-title" content="Planes Pensiones">
+    
+    <!-- Estilos y Scripts -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
+    
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        
+        body {
+            font-family: 'Inter', sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            min-height: 100dvh;
+            padding-top: env(safe-area-inset-top);
+            padding-bottom: env(safe-area-inset-bottom);
+        }
+        
+        .glass-card {
+            background: rgba(255, 255, 255, 0.95);
+            backdrop-filter: blur(10px);
+            border-radius: 20px;
+            box-shadow: 0 8px 32px 0 rgba(31, 38, 135, 0.37);
+            padding: 2rem;
+            transition: all 0.3s ease;
+            border: 1px solid rgba(255, 255, 255, 0.18);
+        }
+        
+        .input-field {
+            position: relative;
+            margin-bottom: 1.5rem;
+        }
+        
+        .input-field input, .input-field select {
+            width: 100%;
+            padding: 12px 15px;
+            border: 2px solid #e5e7eb;
+            border-radius: 10px;
+            font-size: 16px;
+            transition: all 0.3s ease;
+            background: white;
+        }
+        
+        .input-field input:focus, .input-field select:focus {
+            outline: none;
+            border-color: #6366f1;
+            box-shadow: 0 0 0 3px rgba(99, 102, 241, 0.1);
+        }
+        
+        .input-field label {
+            position: absolute;
+            left: 15px;
+            top: -10px;
+            background: white;
+            padding: 0 5px;
+            font-size: 14px;
+            color: #6b7280;
+            font-weight: 500;
+        }
+        
+        .btn-primary {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 14px 30px;
+            border-radius: 10px;
+            font-weight: 600;
+            border: none;
+            cursor: pointer;
+            font-size: 16px;
+            min-height: 44px;
+            width: 100%;
+            margin-bottom: 1rem;
+        }
+        
+        .btn-secondary {
+            background: white;
+            color: #6366f1;
+            padding: 12px 20px;
+            border-radius: 10px;
+            font-weight: 600;
+            border: 2px solid #6366f1;
+            cursor: pointer;
+            font-size: 14px;
+            min-height: 44px;
+            width: 100%;
+            margin-bottom: 0.5rem;
+        }
+        
+        .tab-button {
+            padding: 12px 16px;
+            background: transparent;
+            border: none;
+            cursor: pointer;
+            font-weight: 500;
+            color: #6b7280;
+            transition: all 0.3s ease;
+            border-bottom: 3px solid transparent;
+            min-height: 44px;
+        }
+        
+        .tab-button.active {
+            color: #6366f1;
+            border-bottom-color: #6366f1;
+        }
+        
+        .result-card {
+            background: linear-gradient(135deg, #f3f4f6 0%, #e5e7eb 100%);
+            border-radius: 15px;
+            padding: 1.5rem;
+            margin-top: 1rem;
+        }
+        
+        .result-row {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 0.75rem 0;
+            border-bottom: 1px solid #d1d5db;
+        }
+        
+        .result-row:last-child { border-bottom: none; }
+        
+        .notification {
+            position: fixed;
+            top: 60px;
+            right: 20px;
+            padding: 15px 20px;
+            border-radius: 10px;
+            color: white;
+            font-weight: 500;
+            z-index: 1000;
+            max-width: 300px;
+        }
+        
+        .notification.success {
+            background: linear-gradient(135deg, #10b981 0%, #059669 100%);
+        }
+        
+        .notification.error {
+            background: linear-gradient(135deg, #ef4444 0%, #dc2626 100%);
+        }
+        
+        @media (max-width: 768px) {
+            .glass-card { padding: 1.5rem; }
+            .container { padding-left: 1rem; padding-right: 1rem; }
+        }
+    </style>
+</head>
+<body>
+    <div class="container mx-auto px-4 py-8 max-w-4xl">
+        <header class="text-center mb-8">
+            <h1 class="text-3xl font-bold text-white mb-3">
+                Simulador de Planes de Pensiones
+            </h1>
+            <p class="text-white/90">
+                Calcula la mejor opción para rescatar tu plan
+            </p>
+        </header>
+
+        <div class="glass-card">
+            <div class="grid md:grid-cols-2 gap-4 mb-6">
+                <div class="input-field">
+                    <label for="capitalTotal">Capital Total (€)</label>
+                    <input type="number" id="capitalTotal" value="100000" min="0" step="1000">
+                </div>
+                <div class="input-field">
+                    <label for="capitalPre2007">Capital Pre-2007 (€)</label>
+                    <input type="number" id="capitalPre2007" value="50000" min="0" step="1000">
+                </div>
+                <div class="input-field">
+                    <label for="edadActual">Edad</label>
+                    <input type="number" id="edadActual" value="65" min="18" max="100">
+                </div>
+                <div class="input-field">
+                    <label for="otrasRentas">Otras Rentas Anuales (€)</label>
+                    <input type="number" id="otrasRentas" value="0" min="0" step="1000">
+                </div>
+            </div>
+
+            <div class="mb-6">
+                <h3 class="text-lg font-semibold mb-4">Tipo de Rescate</h3>
+                <div class="flex flex-wrap gap-2">
+                    <button class="tab-button active" data-tipo="capital">Capital</button>
+                    <button class="tab-button" data-tipo="rentaTemporal">Renta</button>
+                    <button class="tab-button" data-tipo="comparador">Comparar</button>
+                </div>
+            </div>
+
+            <div id="inputsRenta" class="hidden mb-6">
+                <div class="grid md:grid-cols-2 gap-4">
+                    <div class="input-field">
+                        <label for="rentaMensual">Renta Mensual (€)</label>
+                        <input type="number" id="rentaMensual" value="1000" min="100" step="100">
+                    </div>
+                    <div class="input-field">
+                        <label for="duracion">Duración (años)</label>
+                        <input type="number" id="duracion" value="10" min="1" max="30">
+                    </div>
+                </div>
+            </div>
+
+            <button id="btnCalcular" class="btn-primary">
+                <i class="fas fa-calculator mr-2"></i>
+                Calcular
+            </button>
+
+            <div class="grid md:grid-cols-2 gap-2">
+                <button id="btnGuardar" class="btn-secondary">
+                    <i class="fas fa-save mr-2"></i>Guardar
+                </button>
+                <button id="btnCompartir" class="btn-secondary">
+                    <i class="fas fa-share mr-2"></i>Compartir
+                </button>
+            </div>
+        </div>
+
+        <div id="resultados" class="glass-card mt-6" style="display: none;">
+            <h2 class="text-xl font-bold mb-4">
+                <i class="fas fa-chart-line mr-2 text-green-600"></i>
+                Resultados
+            </h2>
+            <div id="resultadosContent"></div>
+        </div>
+    </div>
+
+    <script>
+        // Registrar Service Worker
+        if ('serviceWorker' in navigator) {
+            navigator.serviceWorker.register('sw.js')
+                .then(reg => console.log('SW registrado'))
+                .catch(err => console.log('Error SW:', err));
+        }
+
+        // Configuración fiscal
+        const tramosIRPF = [
+            { limite: 12450, tipo: 0.19 },
+            { limite: 20200, tipo: 0.24 },
+            { limite: 35200, tipo: 0.30 },
+            { limite: 60000, tipo: 0.37 },
+            { limite: 300000, tipo: 0.45 },
+            { limite: Infinity, tipo: 0.47 }
+        ];
+
+        let tipoActual = 'capital';
+        let simulaciones = JSON.parse(localStorage.getItem('simulaciones') || '[]');
+
+        // Event Listeners
+        document.addEventListener('DOMContentLoaded', function() {
+            // Tabs
+            document.querySelectorAll('.tab-button').forEach(btn => {
+                btn.addEventListener('click', function() {
+                    document.querySelectorAll('.tab-button').forEach(b => b.classList.remove('active'));
+                    this.classList.add('active');
+                    tipoActual = this.dataset.tipo;
+                    
+                    const inputsRenta = document.getElementById('inputsRenta');
+                    if (tipoActual === 'rentaTemporal') {
+                        inputsRenta.classList.remove('hidden');
+                    } else {
+                        inputsRenta.classList.add('hidden');
+                    }
+                });
+            });
+
+            // Botón calcular
+            document.getElementById('btnCalcular').addEventListener('click', calcular);
+            
+            // Botón guardar
+            document.getElementById('btnGuardar').addEventListener('click', guardar);
+            
+            // Botón compartir
+            document.getElementById('btnCompartir').addEventListener('click', compartir);
+        });
+
+        function calcularIRPF(base) {
+            let impuesto = 0;
+            let baseAcumulada = 0;
+            
+            for (const tramo of tramosIRPF) {
+                if (base > baseAcumulada) {
+                    const baseEnTramo = Math.min(base - baseAcumulada, tramo.limite - baseAcumulada);
+                    impuesto += baseEnTramo * tramo.tipo;
+                    baseAcumulada = tramo.limite;
+                }
+            }
+            
+            return impuesto;
+        }
+
+        function calcular() {
+            const capitalTotal = parseFloat(document.getElementById('capitalTotal').value) || 0;
+            const capitalPre2007 = parseFloat(document.getElementById('capitalPre2007').value) || 0;
+            const edad = parseInt(document.getElementById('edadActual').value) || 65;
+            const otrasRentas = parseFloat(document.getElementById('otrasRentas').value) || 0;
+
+            let resultado = {};
+
+            if (tipoActual === 'capital') {
+                const reduccion = capitalPre2007 * 0.40;
+                const baseImponible = capitalTotal - reduccion + otrasRentas;
+                const impuestoTotal = calcularIRPF(baseImponible);
+                const impuestoSinPlan = calcularIRPF(otrasRentas);
+                const impuestoPlan = impuestoTotal - impuestoSinPlan;
+                const capitalNeto = capitalTotal - impuestoPlan;
+                const tipoEfectivo = (impuestoPlan / capitalTotal) * 100;
+
+                resultado = {
+                    tipo: 'Capital Único',
+                    capitalBruto: capitalTotal,
+                    reduccion: reduccion,
+                    impuesto: impuestoPlan,
+                    capitalNeto: capitalNeto,
+                    tipoEfectivo: tipoEfectivo
+                };
+
+            } else if (tipoActual === 'rentaTemporal') {
+                const rentaMensual = parseFloat(document.getElementById('rentaMensual').value) || 1000;
+                const duracion = parseInt(document.getElementById('duracion').value) || 10;
+                const rentaAnual = rentaMensual * 12;
+                const baseAnual = rentaAnual + otrasRentas;
+                const impuestoTotal = calcularIRPF(baseAnual);
+                const impuestoSinRenta = calcularIRPF(otrasRentas);
+                const impuestoRenta = impuestoTotal - impuestoSinRenta;
+                const rentaNetaAnual = rentaAnual - impuestoRenta;
+                const rentaNetaMensual = rentaNetaAnual / 12;
+
+                resultado = {
+                    tipo: 'Renta Temporal',
+                    rentaBrutaMensual: rentaMensual,
+                    rentaNetaMensual: rentaNetaMensual,
+                    duracion: duracion,
+                    impuestoAnual: impuestoRenta,
+                    tipoEfectivo: (impuestoRenta / rentaAnual) * 100
+                };
+
+            } else if (tipoActual === 'comparador') {
+                // Comparar capital vs renta
+                const reduccion = capitalPre2007 * 0.40;
+                const baseCapital = capitalTotal - reduccion + otrasRentas;
+                const impuestoCapital = calcularIRPF(baseCapital) - calcularIRPF(otrasRentas);
+                const capitalNeto = capitalTotal - impuestoCapital;
+
+                const rentaMensual = 1000;
+                const rentaAnual = rentaMensual * 12;
+                const impuestoRenta = calcularIRPF(rentaAnual + otrasRentas) - calcularIRPF(otrasRentas);
+                const rentaNetaMensual = (rentaAnual - impuestoRenta) / 12;
+
+                resultado = {
+                    tipo: 'Comparación',
+                    capital: {
+                        neto: capitalNeto,
+                        tipoEfectivo: (impuestoCapital / capitalTotal) * 100
+                    },
+                    renta: {
+                        netaMensual: rentaNetaMensual,
+                        tipoEfectivo: (impuestoRenta / rentaAnual) * 100
+                    }
+                };
+            }
+
+            mostrarResultados(resultado);
+        }
+
+        function mostrarResultados(resultado) {
+            const container = document.getElementById('resultadosContent');
+            let html = '<div class="result-card">';
+
+            if (resultado.tipo === 'Capital Único') {
+                html += `
+                    <h3 class="text-lg font-bold mb-4 text-indigo-600">${resultado.tipo}</h3>
+                    <div class="result-row">
+                        <span>Capital Bruto:</span>
+                        <span class="font-bold">${formatMoneda(resultado.capitalBruto)}</span>
+                    </div>
+                    <div class="result-row">
+                        <span>Reducción 40%:</span>
+                        <span class="font-bold text-green-600">-${formatMoneda(resultado.reduccion)}</span>
+                    </div>
+                    <div class="result-row">
+                        <span>Impuestos:</span>
+                        <span class="font-bold text-red-600">-${formatMoneda(resultado.impuesto)}</span>
+                    </div>
+                    <div class="result-row">
+                        <span>Tipo Efectivo:</span>
+                        <span class="font-bold">${resultado.tipoEfectivo.toFixed(2)}%</span>
+                    </div>
+                    <div class="mt-4 p-4 bg-green-50 rounded-lg">
+                        <p class="text-sm text-gray-600 mb-2">Capital Neto</p>
+                        <p class="text-2xl font-bold text-green-600">${formatMoneda(resultado.capitalNeto)}</p>
+                    </div>
+                `;
+            } else if (resultado.tipo === 'Renta Temporal') {
+                html += `
+                    <h3 class="text-lg font-bold mb-4 text-indigo-600">${resultado.tipo}</h3>
+                    <div class="result-row">
+                        <span>Renta Bruta Mensual:</span>
+                        <span class="font-bold">${formatMoneda(resultado.rentaBrutaMensual)}</span>
+                    </div>
+                    <div class="result-row">
+                        <span>Renta Neta Mensual:</span>
+                        <span class="font-bold text-green-600">${formatMoneda(resultado.rentaNetaMensual)}</span>
+                    </div>
+                    <div class="result-row">
+                        <span>Duración:</span>
+                        <span class="font-bold">${resultado.duracion} años</span>
+                    </div>
+                    <div class="result-row">
+                        <span>Tipo Efectivo:</span>
+                        <span class="font-bold">${resultado.tipoEfectivo.toFixed(2)}%</span>
+                    </div>
+                `;
+            } else if (resultado.tipo === 'Comparación') {
+                html += `
+                    <h3 class="text-lg font-bold mb-4 text-indigo-600">Comparación de Opciones</h3>
+                    <div class="grid md:grid-cols-2 gap-4">
+                        <div class="p-3 bg-blue-50 rounded">
+                            <h4 class="font-semibold text-blue-800 mb-2">Capital Único</h4>
+                            <p class="text-xl font-bold text-blue-600">${formatMoneda(resultado.capital.neto)}</p>
+                            <p class="text-sm text-gray-600">Tipo: ${resultado.capital.tipoEfectivo.toFixed(2)}%</p>
+                        </div>
+                        <div class="p-3 bg-green-50 rounded">
+                            <h4 class="font-semibold text-green-800 mb-2">Renta Mensual</h4>
+                            <p class="text-xl font-bold text-green-600">${formatMoneda(resultado.renta.netaMensual)}</p>
+                            <p class="text-sm text-gray-600">Tipo: ${resultado.renta.tipoEfectivo.toFixed(2)}%</p>
+                        </div>
+                    </div>
+                `;
+            }
+
+            html += '</div>';
+            container.innerHTML = html;
+            document.getElementById('resultados').style.display = 'block';
+            document.getElementById('resultados').scrollIntoView({ behavior: 'smooth' });
+        }
+
+        function formatMoneda(valor) {
+            return new Intl.NumberFormat('es-ES', {
+                style: 'currency',
+                currency: 'EUR'
+            }).format(valor);
+        }
+
+        function guardar() {
+            if (!document.getElementById('resultados').style.display || 
+                document.getElementById('resultados').style.display === 'none') {
+                mostrarNotificacion('Primero calcula una simulación', 'error');
+                return;
+            }
+
+            const simulacion = {
+                id: Date.now(),
+                fecha: new Date().toISOString(),
+                datos: {
+                    capitalTotal: document.getElementById('capitalTotal').value,
+                    capitalPre2007: document.getElementById('capitalPre2007').value,
+                    edad: document.getElementById('edadActual').value,
+                    otrasRentas: document.getElementById('otrasRentas').value,
+                    tipo: tipoActual
+                }
+            };
+
+            simulaciones.push(simulacion);
+            localStorage.setItem('simulaciones', JSON.stringify(simulaciones));
+            mostrarNotificacion('Simulación guardada', 'success');
+        }
+
+        async function compartir() {
+            if (!document.getElementById('resultados').style.display || 
+                document.getElementById('resultados').style.display === 'none') {
+                mostrarNotificacion('Primero calcula una simulación', 'error');
+                return;
+            }
+
+            const capital = document.getElementById('capitalTotal').value;
+            const texto = `Simulación Plan de Pensiones:\n💰 Capital: ${formatMoneda(parseFloat(capital))}\n📊 Consulta realizada con la app`;
+
+            if (navigator.share) {
+                try {
+                    await navigator.share({
+                        title: 'Simulación Plan de Pensiones',
+                        text: texto,
+                        url: window.location.href
+                    });
+                } catch (error) {
+                    copiarTexto(texto);
+                }
+            } else {
+                copiarTexto(texto);
+            }
+        }
+
+        function copiarTexto(texto) {
+            if (navigator.clipboard) {
+                navigator.clipboard.writeText(texto).then(() => {
+                    mostrarNotificacion('Copiado al portapapeles', 'success');
+                });
+            } else {
+                mostrarNotificacion('Función no disponible', 'error');
+            }
+        }
+
+        function mostrarNotificacion(mensaje, tipo) {
+            const notif = document.createElement('div');
+            notif.className = `notification ${tipo}`;
+            notif.innerHTML = mensaje;
+            document.body.appendChild(notif);
+            
+            setTimeout(() => {
+                notif.remove();
+            }, 3000);
+        }
+    </script>
+</body>
+</html>
